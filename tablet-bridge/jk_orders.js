@@ -38,14 +38,27 @@ function parseReceiptText(lines) {
   let customerName = '';
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i];
-    const matchCust = line.match(/^(?:Customer|Deliver\s*to|For|Name|Ship\s*to)\s*:\s*(.+)$/i);
+    const matchCust = line.match(/^(?:Customer|Deliver\s*to|Delivery\s*for|For|Name|Ship\s*to)\s*[:\-]?\s*(.+)$/i);
     if (matchCust) {
       customerName = matchCust[1].trim();
       break;
     }
-    if (/^(?:Customer|Deliver\s*to|For|Ship\s*to)$/i.test(line) && i + 1 < lines.length) {
+    if (/^(?:Customer|Deliver\s*to|Delivery\s*for|For|Ship\s*to)$/i.test(line) && i + 1 < lines.length) {
       customerName = lines[i + 1].trim();
       break;
+    }
+  }
+
+  // Fallback: look for typical customer name pattern "FirstName L." or "FirstName LastName"
+  if (!customerName) {
+    for (let i = 0; i < Math.min(lines.length, 8); i++) {
+      const line = lines[i].trim();
+      if (/^[A-Z][a-z]{1,15}\s+[A-Z]\.?$/.test(line) || /^[A-Z][a-z]{1,15}\s+[A-Z][a-z]{1,15}$/.test(line)) {
+        if (!/uber|eats|grubhub|order|receipt|ticket|invoice|pickup|delivery/i.test(line)) {
+          customerName = line;
+          break;
+        }
+      }
     }
   }
 
@@ -75,13 +88,13 @@ function parseReceiptText(lines) {
 
   // 4. Extract Line Items
   const items = [];
-  const itemRegex = /^(\d+)\s*(?:x|\*|\.)?\s+(.+)$/i;
+  const itemRegex = /^(?:\[?(\d+)\]?\s*(?:x|\*|\.|\-)?\s+)(.+)$/i;
 
   for (let i = 0; i < lines.length; i++) {
-    const line = lines[i];
+    const line = lines[i].trim();
 
     // Skip headers and totals
-    if (/total|subtotal|tax|discount|order|uber|grubhub|receipt|deliver|ship|date|time/i.test(line)) {
+    if (/total|subtotal|tax|discount|order|uber|grubhub|receipt|deliver|ship|date|time|estimated|prep time/i.test(line)) {
       continue;
     }
 
@@ -89,15 +102,29 @@ function parseReceiptText(lines) {
     if (itemMatch) {
       const qty = parseInt(itemMatch[1], 10) || 1;
       let name = itemMatch[2].replace(/\$[\d\.]+.*$/, '').trim();
-      let notes = '';
-
-      // Check if next line is an instruction or modifier
-      if (i + 1 < lines.length && /^[*\-•\(]/.test(lines[i + 1])) {
-        notes = lines[i + 1].replace(/^[*\-•\(\)]+/g, '').trim();
-        i++;
+      
+      // Skip if matched header mistakenly
+      if (/estimated|prep|min|minutes|pickup|dropoff|ready/i.test(name)) {
+        continue;
       }
 
-      if (name.length > 2) {
+      // Collect all following modifier / instruction lines
+      const modifierLines = [];
+      while (i + 1 < lines.length) {
+        const nextLine = lines[i + 1].trim();
+        // Stop at blank line, next item, or header/total
+        if (!nextLine || itemRegex.test(nextLine) || /total|subtotal|tax|discount|order|uber|grubhub|receipt|deliver|ship|special instructions/i.test(nextLine)) {
+          break;
+        }
+        // Skip prep time lines
+        if (!/estimated|prep|min|minutes/i.test(nextLine)) {
+          modifierLines.push(nextLine.replace(/^[*\-•\(\)]+/g, '').trim());
+        }
+        i++;
+      }
+      const notes = modifierLines.join(', ');
+
+      if (name.length >= 2) {
         items.push({
           qty,
           name,

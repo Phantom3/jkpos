@@ -59,6 +59,48 @@ let CONFIG = {
 };
 
 let pendingOnlineOrders = [];
+let menuCache = [];
+
+async function loadMenuCache() {
+  try {
+    const { getPool } = require('C:/Users/Dunesuser/jkrestaurant-web/backend/db');
+    const pool = await getPool();
+    const r = await pool.request().query('SELECT ItemIDN, Name, Price FROM rItem WHERE IsActive = 1');
+    menuCache = r.recordset;
+    log(`[Menu] Cached ${menuCache.length} menu items from rItem for online order matching`);
+  } catch (err) {
+    log(`[Menu Error] Failed to load menu: ${err.message}`);
+  }
+}
+loadMenuCache();
+setInterval(loadMenuCache, 5 * 60 * 1000);
+
+function matchMenuItem(query) {
+  if (!query || menuCache.length === 0) {
+    return { id: 36701000, name: 'Custom Sandwich' };
+  }
+  const q = query.toLowerCase().trim();
+
+  // 1. Exact match
+  let m = menuCache.find(i => i.Name.toLowerCase() === q);
+  if (m) return { id: m.ItemIDN, name: m.Name };
+
+  // 2. Starts with
+  m = menuCache.find(i => i.Name.toLowerCase().startsWith(q));
+  if (m) return { id: m.ItemIDN, name: m.Name };
+
+  // 3. Substring
+  m = menuCache.find(i => i.Name.toLowerCase().includes(q) || q.includes(i.Name.toLowerCase()));
+  if (m) return { id: m.ItemIDN, name: m.Name };
+
+  // 4. Sandwich fallback
+  if (/sandwich|hero|roll|wrap|panini|turkey|roast|ham|chicken|blt|club/i.test(q)) {
+    return { id: 36701000, name: 'Custom Sandwich' };
+  }
+
+  // 5. Default fallback
+  return { id: 36701000, name: query };
+}
 
 function buildJkOnlineOrderXml(order) {
   if (!order) {
@@ -75,11 +117,14 @@ function buildJkOnlineOrderXml(order) {
   let itemsXml = '';
   if (order.items && order.items.length > 0) {
     for (const item of order.items) {
-      const itemName = item.name || 'Item';
+      const matched = matchMenuItem(item.name);
+      const posId = item.pos_id || matched.id;
+      const itemName = matched.name || item.name || 'Custom Sandwich';
       const qty = item.qty || 1;
       const notes = item.notes ? `<modifier><name>${item.notes.replace(/[<>&]/g, '')}</name></modifier>` : '';
       itemsXml += `
         <item>
+          <pos_id>${posId}</pos_id>
           <name>${itemName.replace(/[<>&]/g, '')}</name>
           <quantity>${qty}</quantity>
           <price>0.00</price>
@@ -89,7 +134,8 @@ function buildJkOnlineOrderXml(order) {
   } else {
     itemsXml = `
       <item>
-        <name>Delivery Order</name>
+        <pos_id>36701000</pos_id>
+        <name>Custom Sandwich</name>
         <quantity>1</quantity>
         <price>0.00</price>
       </item>`;
