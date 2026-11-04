@@ -1,0 +1,11 @@
+{
+  "name": "jkrestaurant-web-suite",
+  "version": "1.0.0",
+  "description": "Full-stack web management system for JKRestaurant MS SQL Server",
+  "scripts": {
+    "start": "node backend/server.js",
+    "build:frontend": "cd frontend && npm run build",
+    "dev:frontend": "cd frontend && npm run dev",
+    "dev:backend": "cd backend && node server.js"
+  }
+}

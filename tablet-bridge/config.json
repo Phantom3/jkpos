@@ -1,0 +1,30 @@
+{
+  "targetPrinters": [
+    {
+      "id": "deli",
+      "name": "Deli",
+      "ip": "192.168.2.153",
+      "port": 9100,
+      "enabled": false
+    },
+    {
+      "id": "kitchen",
+      "name": "Kitchen",
+      "ip": "192.168.2.246",
+      "port": 9100,
+      "enabled": false
+    },
+    {
+      "id": "register",
+      "name": "Register",
+      "smbPath": "\\\\192.168.2.232\\POS-80C",
+      "enabled": true
+    }
+  ],
+  "settings": {
+    "copies": 1,
+    "beeps": 3,
+    "beepDuration": 4,
+    "syncToJkPos": true
+  }
+}

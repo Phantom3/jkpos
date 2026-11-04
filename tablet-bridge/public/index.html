@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>POS Delivery Printer Control</title>
+  <link rel="stylesheet" href="style.css">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+</head>
+<body>
+  <div class="app-container">
+    <header class="app-header">
+      <div class="logo-area">
+        <div class="icon-badge">🖨️</div>
+        <div>
+          <h1>Printer Manager</h1>
+          <p class="subtitle">Uber Eats & Grubhub Tablet Delivery Bridge</p>
+        </div>
+      </div>
+      <div class="header-actions">
+        <button id="btn-test-all" class="btn btn-secondary">
+          <span class="icon">🔔</span> Test All Active
+        </button>
+        <button id="btn-save" class="btn btn-primary">
+          <span class="icon">💾</span> Save Changes
+        </button>
+      </div>
+    </header>
+
+    <main class="dashboard-grid">
+      <!-- Left Column: Printers List -->
+      <section class="card">
+        <div class="card-header">
+          <h2>Active Destinations</h2>
+          <span class="badge">XK-200L POS-80C</span>
+        </div>
+        <p class="card-desc">Toggle which stations receive automated delivery tickets:</p>
+        
+        <div id="printers-list" class="printers-list">
+          <!-- Dynamic Printer Cards inserted here -->
+          <div class="loading-spinner">Loading printers...</div>
+        </div>
+      </section>
+
+      <!-- Right Column: Print & Alert Settings -->
+      <section class="card">
+        <div class="card-header">
+          <h2>Ticket & Alert Rules</h2>
+        </div>
+        <p class="card-desc">Customize copy quantities and audio buzzer behavior:</p>
+
+        <div class="settings-group">
+          <!-- Copies Setting -->
+          <div class="setting-item">
+            <div class="setting-info">
+              <label for="copies-input">Number of Copies</label>
+              <span class="setting-hint">Number of identical slips printed per order</span>
+            </div>
+            <div class="stepper">
+              <button type="button" class="stepper-btn" onclick="adjustValue('copies', -1)">-</button>
+              <input type="number" id="copies-input" min="1" max="5" value="1">
+              <button type="button" class="stepper-btn" onclick="adjustValue('copies', 1)">+</button>
+            </div>
+          </div>
+
+          <!-- Beeps Setting -->
+          <div class="setting-item">
+            <div class="setting-info">
+              <label for="beeps-input">Kitchen Audio Beeps</label>
+              <span class="setting-hint">Loud beeps sounded after paper cut (0 to disable)</span>
+            </div>
+            <div class="stepper">
+              <button type="button" class="stepper-btn" onclick="adjustValue('beeps', -1)">-</button>
+              <input type="number" id="beeps-input" min="0" max="9" value="3">
+              <button type="button" class="stepper-btn" onclick="adjustValue('beeps', 1)">+</button>
+            </div>
+          </div>
+
+          <!-- POS Sync Setting -->
+          <div class="setting-item">
+            <div class="setting-info">
+              <label for="sync-pos-toggle">Sync to JKRestaurant POS</label>
+              <span class="setting-hint">Automatically add delivery orders to Open Orders in database</span>
+            </div>
+            <label class="switch">
+              <input type="checkbox" id="sync-pos-toggle" checked>
+              <span class="slider"></span>
+            </label>
+          </div>
+
+          <!-- Beep Preview / Status -->
+          <div class="alert-box">
+            <div class="alert-icon">⚡</div>
+            <div class="alert-text">
+              <strong>Instant Sync:</strong> Changes saved here apply immediately to the background delivery bridge without restarting the system.
+            </div>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <!-- Toast Notification -->
+    <div id="toast" class="toast">Settings updated successfully!</div>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>

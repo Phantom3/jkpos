@@ -1,0 +1,462 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Top 5 Sandwiches Utility | Dunes Deli & Catering</title>
+  <style>
+    :root {
+      --bg-app: #0f172a;
+      --bg-surface: #1e293b;
+      --bg-surface-elevated: #334155;
+      --bg-surface-hover: #2d3b52;
+      --text-primary: #f8fafc;
+      --text-secondary: #94a3b8;
+      --text-muted: #64748b;
+      --primary: #3b82f6;
+      --success: #10b981;
+      --warning: #f59e0b;
+      --border: #334155;
+      --border-subtle: #243247;
+      --border-radius: 12px;
+      --shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.4), 0 2px 4px -1px rgba(0, 0, 0, 0.3);
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+      background-color: var(--bg-app);
+      color: var(--text-primary);
+      line-height: 1.5;
+      padding: 24px;
+      max-width: 1200px;
+      margin: 0 auto;
+    }
+
+    /* Header */
+    .header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      background: var(--bg-surface);
+      border: 1px solid var(--border);
+      border-radius: var(--border-radius);
+      padding: 20px 24px;
+      margin-bottom: 24px;
+      flex-wrap: wrap;
+      gap: 16px;
+    }
+
+    .title-group h1 {
+      font-size: 1.4rem;
+      font-weight: 800;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .title-group p {
+      font-size: 0.88rem;
+      color: var(--text-secondary);
+      margin-top: 4px;
+    }
+
+    .controls-group {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+
+    .pill-btn {
+      padding: 8px 14px;
+      background: var(--bg-surface-elevated);
+      border: 1px solid var(--border);
+      border-radius: 20px;
+      color: var(--text-secondary);
+      font-size: 0.84rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .pill-btn:hover { background: var(--bg-surface-hover); color: var(--text-primary); }
+    .pill-btn.active { background: var(--primary); border-color: var(--primary); color: white; }
+
+    .btn-action {
+      padding: 8px 14px;
+      background: var(--bg-surface-elevated);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      color: var(--text-primary);
+      font-size: 0.84rem;
+      font-weight: 600;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .btn-action:hover { background: var(--bg-surface-hover); }
+
+    /* KPIs */
+    .kpi-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      gap: 16px;
+      margin-bottom: 24px;
+    }
+
+    .kpi-card {
+      background: var(--bg-surface);
+      border: 1px solid var(--border);
+      border-radius: var(--border-radius);
+      padding: 18px;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+
+    .kpi-label { font-size: 0.75rem; text-transform: uppercase; color: var(--text-secondary); font-weight: 700; }
+    .kpi-value { font-size: 1.6rem; font-weight: 800; color: var(--text-primary); line-height: 1.2; }
+    .kpi-subtext { font-size: 0.78rem; color: var(--text-muted); }
+
+    /* Cards */
+    .card {
+      background: var(--bg-surface);
+      border: 1px solid var(--border);
+      border-radius: var(--border-radius);
+      padding: 24px;
+      margin-bottom: 24px;
+      box-shadow: var(--shadow);
+    }
+
+    .card h2 { font-size: 1.15rem; font-weight: 800; margin-bottom: 16px; }
+
+    /* Leaderboard */
+    .leaderboard-list { display: flex; flex-direction: column; gap: 12px; }
+
+    .rank-row {
+      display: flex;
+      align-items: center;
+      background: var(--bg-surface-elevated);
+      border: 1px solid var(--border-subtle);
+      border-radius: 10px;
+      padding: 16px 20px;
+      gap: 18px;
+      transition: transform 0.15s ease;
+    }
+
+    .rank-row:hover { transform: translateX(3px); border-color: var(--primary); }
+
+    .rank-badge {
+      font-size: 1.1rem;
+      font-weight: 800;
+      width: 44px;
+      height: 44px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: 50%;
+      background: rgba(255, 255, 255, 0.08);
+      flex-shrink: 0;
+    }
+
+    .rank-badge.gold { background: rgba(245, 158, 11, 0.2); color: #fbbf24; border: 1px solid rgba(245, 158, 11, 0.4); }
+    .rank-badge.silver { background: rgba(148, 163, 184, 0.2); color: #cbd5e1; border: 1px solid rgba(148, 163, 184, 0.4); }
+    .rank-badge.bronze { background: rgba(180, 83, 9, 0.2); color: #f59e0b; border: 1px solid rgba(180, 83, 9, 0.4); }
+
+    .item-details { flex: 1; display: flex; flex-direction: column; gap: 6px; }
+    .item-title-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+    .item-name { font-size: 1.1rem; font-weight: 700; color: var(--text-primary); }
+    
+    .category-tag {
+      background: rgba(59, 130, 246, 0.15);
+      color: #60a5fa;
+      font-size: 0.75rem;
+      padding: 2px 8px;
+      border-radius: 10px;
+      font-weight: 600;
+    }
+
+    .progress-bar-wrap {
+      width: 100%;
+      max-width: 380px;
+      height: 8px;
+      background: rgba(0, 0, 0, 0.3);
+      border-radius: 4px;
+      overflow: hidden;
+    }
+
+    .progress-bar-fill {
+      height: 100%;
+      background: linear-gradient(90deg, #3b82f6, #10b981);
+      border-radius: 4px;
+    }
+
+    .item-metrics {
+      display: flex;
+      align-items: center;
+      gap: 24px;
+      text-align: right;
+    }
+
+    .metric-col { display: flex; flex-direction: column; }
+    .metric-num { font-size: 1.25rem; font-weight: 800; color: #34d399; }
+    .metric-sub { font-size: 0.72rem; text-transform: uppercase; color: var(--text-muted); font-weight: 600; }
+
+    /* Table */
+    table { width: 100%; border-collapse: collapse; font-size: 0.92rem; }
+    th { text-align: left; padding: 10px 14px; font-size: 0.78rem; text-transform: uppercase; color: var(--text-muted); border-bottom: 1px solid var(--border); }
+    td { padding: 12px 14px; border-bottom: 1px solid var(--border-subtle); }
+    .text-right { text-align: right; }
+    .text-center { text-align: center; }
+    .font-bold { font-weight: 700; }
+
+    /* Print Styles */
+    @media print {
+      body { background: white; color: black; padding: 0; }
+      .header, .card, .rank-row, .kpi-card { background: white !important; border: 1px solid #ccc !important; box-shadow: none !important; color: black !important; }
+      .controls-group, .btn-action { display: none !important; }
+      .item-name, .kpi-value, .metric-num { color: black !important; }
+      .category-tag { background: #eee !important; color: #333 !important; }
+      .progress-bar-fill { background: #555 !important; }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Header -->
+  <div class="header">
+    <div class="title-group">
+      <h1>🥪 Top 5 Ordered Sandwiches</h1>
+      <p id="dateRangeText">Loading sales from DUNESSERVER\JKSOFT (JKRTDB)...</p>
+    </div>
+
+    <div class="controls-group">
+      <button class="pill-btn active" onclick="loadData(7)">Past 7 Days</button>
+      <button class="pill-btn" onclick="loadData(14)">Past 14 Days</button>
+      <button class="pill-btn" onclick="loadData(30)">Past 30 Days</button>
+      <button class="btn-action" onclick="window.print()">🖨️ Print Report</button>
+      <button class="btn-action" onclick="loadData(currentDays)">🔄 Refresh</button>
+    </div>
+  </div>
+
+  <!-- KPIs -->
+  <div class="kpi-grid">
+    <div class="kpi-card">
+      <span class="kpi-label">Total Sandwiches Sold</span>
+      <span class="kpi-value" id="kpiTotalQty">-</span>
+      <span class="kpi-subtext">Units across all categories</span>
+    </div>
+    <div class="kpi-card">
+      <span class="kpi-label">Total Sandwich Sales</span>
+      <span class="kpi-value" id="kpiTotalRevenue" style="color: #34d399;">-</span>
+      <span class="kpi-subtext">Gross sales volume</span>
+    </div>
+    <div class="kpi-card">
+      <span class="kpi-label">Top 5 Market Share</span>
+      <span class="kpi-value" id="kpiShare" style="color: #60a5fa;">-</span>
+      <span class="kpi-subtext">% of all sandwich sales</span>
+    </div>
+    <div class="kpi-card">
+      <span class="kpi-label">#1 Best Seller</span>
+      <span class="kpi-value" id="kpiBestSeller" style="font-size: 1.25rem;">-</span>
+      <span class="kpi-subtext" id="kpiBestSellerSub">-</span>
+    </div>
+  </div>
+
+  <!-- Leaderboard -->
+  <div class="card">
+    <h2>🏆 Sandwich Leaderboard</h2>
+    <div class="leaderboard-list" id="leaderboardContainer">
+      <p style="color: var(--text-muted); text-align: center; padding: 24px;">Loading leaderboard data...</p>
+    </div>
+  </div>
+
+  <!-- Breakdown Table -->
+  <div class="card">
+    <h2>📊 Detailed Performance Table</h2>
+    <div style="overflow-x: auto;">
+      <table>
+        <thead>
+          <tr>
+            <th>Rank</th>
+            <th>Sandwich Item</th>
+            <th>Category</th>
+            <th class="text-center">Units Sold</th>
+            <th class="text-right">Avg Unit Price</th>
+            <th class="text-right">Total Revenue</th>
+            <th class="text-right">% of Sandwiches</th>
+          </tr>
+        </thead>
+        <tbody id="tableBody"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- Auth Modal -->
+  <div id="authModal" style="display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.85); backdrop-filter: blur(5px); z-index: 9999; align-items: center; justify-content: center; padding: 20px;">
+    <div style="background: #1e293b; border: 1px solid #334155; border-radius: 14px; padding: 32px; max-width: 400px; width: 100%; box-shadow: 0 10px 25px rgba(0,0,0,0.5); text-align: center;">
+      <div style="width: 56px; height: 56px; border-radius: 12px; background: #3b82f6; display: flex; align-items: center; justify-content: center; margin: 0 auto 16px; font-size: 1.8rem;">🔒</div>
+      <h3 style="font-size: 1.3rem; font-weight: 800; margin-bottom: 6px;">Report Locked</h3>
+      <p style="font-size: 0.85rem; color: #94a3b8; margin-bottom: 20px;">Enter your master username and password to access the top sandwiches report.</p>
+
+      <div id="loginError" style="display: none; background: rgba(239,68,68,0.2); border: 1px solid #ef4444; color: #fca5a5; padding: 10px; border-radius: 8px; font-size: 0.85rem; margin-bottom: 16px;"></div>
+
+      <form onsubmit="handleLoginSubmit(event)" style="display: flex; flex-direction: column; gap: 14px; text-align: left;">
+        <div>
+          <label style="font-size: 0.8rem; font-weight: 700; color: #94a3b8; text-transform: uppercase;">Username:</label>
+          <input type="text" id="loginUser" value="admin" required style="width: 100%; padding: 10px 12px; margin-top: 4px; background: #0f172a; border: 1px solid #334155; border-radius: 6px; color: white; font-size: 0.95rem; outline: none;" />
+        </div>
+        <div>
+          <label style="font-size: 0.8rem; font-weight: 700; color: #94a3b8; text-transform: uppercase;">Password:</label>
+          <input type="password" id="loginPass" value="dunes2026" required style="width: 100%; padding: 10px 12px; margin-top: 4px; background: #0f172a; border: 1px solid #334155; border-radius: 6px; color: white; font-size: 0.95rem; outline: none;" />
+        </div>
+        <button type="submit" style="width: 100%; padding: 12px; margin-top: 10px; background: #3b82f6; color: white; border: none; border-radius: 8px; font-size: 1rem; font-weight: 700; cursor: pointer;">Unlock Report</button>
+      </form>
+    </div>
+  </div>
+
+  <script>
+    let currentDays = 7;
+    let authToken = localStorage.getItem('jkpos_auth_token');
+
+    const formatCurrency = (n) => '$' + Number(n || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    const formatDate = (iso) => new Date(iso).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+
+    async function handleLoginSubmit(e) {
+      e.preventDefault();
+      const u = document.getElementById('loginUser').value;
+      const p = document.getElementById('loginPass').value;
+      const errBox = document.getElementById('loginError');
+      errBox.style.display = 'none';
+
+      try {
+        const res = await fetch('/api/auth/login', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ username: u, password: p })
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || 'Authentication failed');
+
+        authToken = data.token;
+        localStorage.setItem('jkpos_auth_token', data.token);
+        localStorage.setItem('jkpos_username', data.username);
+        document.getElementById('authModal').style.display = 'none';
+        loadData(currentDays);
+      } catch (err) {
+        errBox.textContent = err.message;
+        errBox.style.display = 'block';
+      }
+    }
+
+    async function loadData(days) {
+      currentDays = days;
+      if (!authToken) {
+        document.getElementById('authModal').style.display = 'flex';
+        return;
+      }
+
+      document.querySelectorAll('.pill-btn').forEach((btn, i) => {
+        btn.classList.toggle('active', (days === 7 && i === 0) || (days === 14 && i === 1) || (days === 30 && i === 2));
+      });
+
+      try {
+        const res = await fetch(`/api/utilities/top-sandwiches?days=${days}&limit=5`, {
+          headers: { 'Authorization': `Bearer ${authToken}` }
+        });
+        
+        if (res.status === 401) {
+          localStorage.removeItem('jkpos_auth_token');
+          authToken = null;
+          document.getElementById('authModal').style.display = 'flex';
+          return;
+        }
+
+        const json = await res.json();
+
+        // Header Date
+        document.getElementById('dateRangeText').textContent = 
+          `Dunes Deli & Catering • Sales from ${formatDate(json.startDate)} to ${formatDate(json.endDate)}`;
+
+        // KPIs
+        const sandwiches = json.sandwiches || [];
+        const grandTotalQty = json.grandTotalQty || 0;
+        const grandTotalRevenue = json.grandTotalRevenue || 0;
+        const top5Qty = sandwiches.reduce((s, x) => s + x.TotalQuantity, 0);
+        const top5Share = grandTotalQty > 0 ? ((top5Qty / grandTotalQty) * 100).toFixed(1) : 0;
+
+        document.getElementById('kpiTotalQty').textContent = grandTotalQty.toLocaleString();
+        document.getElementById('kpiTotalRevenue').textContent = formatCurrency(grandTotalRevenue);
+        document.getElementById('kpiShare').textContent = top5Share + '%';
+        document.getElementById('kpiBestSeller').textContent = sandwiches[0]?.Name || 'None';
+        document.getElementById('kpiBestSellerSub').textContent = sandwiches[0] ? `${sandwiches[0].TotalQuantity} units sold (${formatCurrency(sandwiches[0].TotalRevenue)})` : '';
+
+        // Leaderboard Cards
+        const badges = ['🥇', '🥈', '🥉', '#4', '#5'];
+        const badgeClasses = ['gold', 'silver', 'bronze', '', ''];
+
+        const leaderboardHtml = sandwiches.map((s, idx) => {
+          const fillWidth = Math.min(100, Math.max(10, s.sharePercent * 1.5));
+          return `
+            <div class="rank-row">
+              <div class="rank-badge ${badgeClasses[idx]}">${badges[idx]}</div>
+              <div class="item-details">
+                <div class="item-title-row">
+                  <span class="item-name">${s.Name}</span>
+                  <span class="category-tag">${s.Category}</span>
+                </div>
+                <div class="progress-bar-wrap">
+                  <div class="progress-bar-fill" style="width: ${fillWidth}%;"></div>
+                </div>
+                <span style="font-size: 0.78rem; color: var(--text-muted);">
+                  <strong>${s.sharePercent}%</strong> of all sandwiches sold
+                </span>
+              </div>
+              <div class="item-metrics">
+                <div class="metric-col">
+                  <span class="metric-num" style="color: #60a5fa;">${s.TotalQuantity}</span>
+                  <span class="metric-sub">Units Sold</span>
+                </div>
+                <div class="metric-col">
+                  <span class="metric-num" style="color: #34d399;">${formatCurrency(s.TotalRevenue)}</span>
+                  <span class="metric-sub">Revenue</span>
+                </div>
+                <div class="metric-col">
+                  <span class="metric-num" style="color: var(--text-secondary); font-size: 1.1rem;">$${Number(s.AvgPrice).toFixed(2)}</span>
+                  <span class="metric-sub">Avg Price</span>
+                </div>
+              </div>
+            </div>
+          `;
+        }).join('');
+
+        document.getElementById('leaderboardContainer').innerHTML = leaderboardHtml || '<p style="text-align: center; color: var(--text-muted);">No sandwich sales recorded.</p>';
+
+        // Table Rows
+        const tableHtml = sandwiches.map(s => `
+          <tr>
+            <td class="font-bold">#${s.rank}</td>
+            <td class="font-bold">${s.Name}</td>
+            <td><span class="category-tag">${s.Category}</span></td>
+            <td class="text-center font-bold" style="color: #60a5fa; font-size: 1.05rem;">${s.TotalQuantity}</td>
+            <td class="text-right" style="color: var(--text-muted);">$${Number(s.AvgPrice).toFixed(2)}</td>
+            <td class="text-right font-bold" style="color: #34d399;">${formatCurrency(s.TotalRevenue)}</td>
+            <td class="text-right font-bold">${s.sharePercent}%</td>
+          </tr>
+        `).join('');
+
+        document.getElementById('tableBody').innerHTML = tableHtml;
+
+      } catch (err) {
+        console.error('Error loading data:', err);
+        document.getElementById('leaderboardContainer').innerHTML = `<p style="color: #f87171;">Failed to load data: ${err.message}</p>`;
+      }
+    }
+
+    loadData(7);
+  </script>
+</body>
+</html>
