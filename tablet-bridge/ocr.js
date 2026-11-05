@@ -7,6 +7,7 @@ const PS_SCRIPT = path.join(__dirname, 'run_ocr.ps1');
 // PowerShell script that uses Windows native OCR
 const PS_CODE = `
 param([string]$ImagePath)
+[Console]::OutputEncoding = [System.Text.Encoding]::UTF8
 [void][Windows.Storage.StorageFile, Windows.Storage, ContentType = WindowsRuntime]
 [void][Windows.Media.Ocr.OcrEngine, Windows.Foundation.Metadata, ContentType = WindowsRuntime]
 [void][Windows.Graphics.Imaging.BitmapDecoder, Windows.Foundation.Metadata, ContentType = WindowsRuntime]
@@ -103,7 +104,7 @@ function recognizeRasterLines(rasterLines) {
     fs.writeFile(tempBmp, bmpBuf, (err) => {
       if (err) return resolve([]);
 
-      execFile('powershell.exe', ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', PS_SCRIPT, '-ImagePath', tempBmp], (error, stdout) => {
+      execFile('powershell.exe', ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', PS_SCRIPT, '-ImagePath', tempBmp], { encoding: 'utf8', maxBuffer: 10 * 1024 * 1024 }, (error, stdout) => {
         try { fs.unlinkSync(tempBmp); } catch (e) {}
         if (error || !stdout) {
           return resolve([]);

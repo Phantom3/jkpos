@@ -79,27 +79,41 @@ function matchMenuItem(query) {
   if (!query || menuCache.length === 0) {
     return { id: 36701000, name: 'Custom Sandwich' };
   }
-  const q = query.toLowerCase().trim();
+  const clean = query.replace(/\$[\d\.]+/g, '').replace(/[^a-zA-Z\s]/g, ' ').replace(/\s+/g, ' ').trim().toLowerCase();
+  if (clean.length < 3) return null;
+
+  // Reject instructions, modifiers, and non-item words
+  if (/^(no|extra|add|sub|remove|on|with|without|light|side|please|thank|well|cut|dressed|note|notes|instructions?)\b/i.test(clean)) {
+    return null;
+  }
 
   // 1. Exact match
-  let m = menuCache.find(i => i.Name.toLowerCase() === q);
+  let m = menuCache.find(i => i.Name.toLowerCase() === clean);
   if (m) return { id: m.ItemIDN, name: m.Name };
 
-  // 2. Starts with
-  m = menuCache.find(i => i.Name.toLowerCase().startsWith(q));
+  // 2. Exact word boundaries match
+  const wordRegex = new RegExp('\\b' + clean + '\\b', 'i');
+  m = menuCache.find(i => wordRegex.test(i.Name));
   if (m) return { id: m.ItemIDN, name: m.Name };
 
-  // 3. Substring
-  m = menuCache.find(i => i.Name.toLowerCase().includes(q) || q.includes(i.Name.toLowerCase()));
+  // 3. Substring match (longest menu name first)
+  const sortedMenu = [...menuCache].sort((a,b) => b.Name.length - a.Name.length);
+  m = sortedMenu.find(i => i.Name.length >= 4 && (clean.includes(i.Name.toLowerCase()) || i.Name.toLowerCase().includes(clean)));
   if (m) return { id: m.ItemIDN, name: m.Name };
 
-  // 4. Sandwich fallback
-  if (/sandwich|hero|roll|wrap|panini|turkey|roast|ham|chicken|blt|club/i.test(q)) {
+  // 4. Token match (all words in clean match words in item name)
+  const tokens = clean.split(' ').filter(w => w.length >= 3);
+  if (tokens.length >= 2) {
+    m = sortedMenu.find(i => tokens.every(t => i.Name.toLowerCase().includes(t)));
+    if (m) return { id: m.ItemIDN, name: m.Name };
+  }
+
+  // 5. Sandwich category fallback
+  if (/sandwich|hero|roll|wrap|panini|club|blt|burger|sub/i.test(clean)) {
     return { id: 36701000, name: 'Custom Sandwich' };
   }
 
-  // 5. Default fallback
-  return { id: 36701000, name: query };
+  return null;
 }
 
 function buildJkOnlineOrderXml(order) {
@@ -118,8 +132,13 @@ function buildJkOnlineOrderXml(order) {
   if (order.items && order.items.length > 0) {
     for (const item of order.items) {
       const matched = matchMenuItem(item.name);
+      if (!matched) {
+        log(`[Matcher] Skipped non-item line: "${item.name}"`);
+        continue;
+      }
+
       const posId = item.pos_id || matched.id;
-      const itemName = matched.name || item.name || 'Custom Sandwich';
+      const itemName = matched.name || 'Custom Sandwich';
       const qty = item.qty || 1;
       const notes = item.notes ? `<modifier><name>${item.notes.replace(/[<>&]/g, '')}</name></modifier>` : '';
       itemsXml += `
@@ -131,7 +150,9 @@ function buildJkOnlineOrderXml(order) {
           ${notes}
         </item>`;
     }
-  } else {
+  }
+
+  if (!itemsXml) {
     itemsXml = `
       <item>
         <pos_id>36701000</pos_id>
