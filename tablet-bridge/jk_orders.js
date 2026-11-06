@@ -115,16 +115,73 @@ function parseReceiptText(lines) {
   let currentItem = null;
   let expectingModifier = false;
 
+  const STOP_FOOTER_REGEX = /^(?:amount\s*paid|placed\s*at|due\s*at|ready\s*at|thank\s*you|subtotal|total|tax|tip|payment)\b/i;
+  const PROMPT_REGEX = /^(?:b\.?y\.?o\.?h\.?\s*addons?|bread\s*options?|cheese|choice\s*of|choose|condiments?|special\s*instructions?|customer\s*notes?|options?)\b/i;
+  const DRINK_START_REGEX = /^(?:dunes\s*iced\s*drinks?|cold\s*house\s*drinks?|iced\s*drinks?|cold\s*drinks?|hot\s*drinks?)\b/i;
+  const SANDWICH_START_REGEX = /^(?:b\.?y\.?o\.?h\.?\s*cold\s*cuts?|custom\s*sandwich|cold\s*cuts?)\b/i;
+
   for (let i = 0; i < cleanLines.length; i++) {
     const line = cleanLines[i];
 
-    // Skip times, totals, headers
+    // 1. Stop processing on receipt footer (Amount paid, Placed at, Thank you, etc.)
+    if (STOP_FOOTER_REGEX.test(line)) {
+      break;
+    }
+
+    // 2. Skip times, totals, headers
     if (/^(?:uber|grubhub|order|receipt|invoice|subtotal|total|tax|discount|estimated|prep time|\d+\s*mins?)\b/i.test(line)) {
       continue;
     }
 
-    // Check for modifier section prompt (e.g. CHOICE OF BREAD, CONDIMENTS)
-    if (/^(?:choice of|choose|condiments|special instructions?|customer notes?|options?)\b/i.test(line)) {
+    // 3. Skip customer name line if identical
+    if (customerName && line.toLowerCase() === customerName.toLowerCase()) {
+      continue;
+    }
+
+    // 4. Detect standalone Drink start (e.g. Dunes Iced Drinks, Cold House Drinks)
+    if (DRINK_START_REGEX.test(line)) {
+      if (currentItem) {
+        items.push({
+          qty: currentItem.qty,
+          name: currentItem.name,
+          pos_id: currentItem.pos_id,
+          notes: currentItem.notes.join(', '),
+          price: 0
+        });
+      }
+      currentItem = {
+        qty: 1,
+        name: 'Cold Drinks 32oz',
+        pos_id: 25401000,
+        notes: []
+      };
+      expectingModifier = true;
+      continue;
+    }
+
+    // 5. Detect standalone Custom Sandwich start (e.g. B.Y.O.H. COLD CUTS)
+    if (SANDWICH_START_REGEX.test(line)) {
+      if (currentItem) {
+        items.push({
+          qty: currentItem.qty,
+          name: currentItem.name,
+          pos_id: currentItem.pos_id,
+          notes: currentItem.notes.join(', '),
+          price: 0
+        });
+      }
+      currentItem = {
+        qty: 1,
+        name: 'Bologna',
+        pos_id: 38801000,
+        notes: []
+      };
+      expectingModifier = true;
+      continue;
+    }
+
+    // 6. Check for modifier section prompt (e.g. CHOICE OF BREAD, BREAD OPTIONS, CONDIMENTS)
+    if (PROMPT_REGEX.test(line)) {
       expectingModifier = true;
       const noteMatch = line.match(/^(?:customer notes?|special instructions?)\s*[:\-]?\s*(.+)$/i);
       if (noteMatch && currentItem) {
@@ -136,7 +193,7 @@ function parseReceiptText(lines) {
       continue;
     }
 
-    // Check if line starts with a quantity: "1x", "1 ", "2x", "[1]"
+    // 7. Check if line starts with a quantity: "1x", "1 ", "2x", "[1]"
     const qtyMatch = line.match(/^(?:\[?(\d+)\]?\s*(?:x|\*|\.|\-)?\s+)(.+)$/i);
     if (qtyMatch) {
       const qty = parseInt(qtyMatch[1], 10) || 1;
@@ -144,6 +201,13 @@ function parseReceiptText(lines) {
 
       // Skip if matched time or price
       if (/^(?:min|mins|minute|minutes|hr|hrs|hour|hours|am|pm|ready|pickup)\b/i.test(text) || /^\$?[\d\.]+\$?$/.test(text)) {
+        continue;
+      }
+
+      // If meat name under B.Y.O.H. sandwich
+      if (/bologna/i.test(text) && currentItem) {
+        currentItem.name = 'Bologna';
+        currentItem.pos_id = 38801000;
         continue;
       }
 
@@ -161,6 +225,7 @@ function parseReceiptText(lines) {
         items.push({
           qty: currentItem.qty,
           name: currentItem.name,
+          pos_id: currentItem.pos_id,
           notes: currentItem.notes.join(', '),
           price: 0
         });
@@ -187,6 +252,7 @@ function parseReceiptText(lines) {
     items.push({
       qty: currentItem.qty,
       name: currentItem.name,
+      pos_id: currentItem.pos_id,
       notes: currentItem.notes.join(', '),
       price: 0
     });
