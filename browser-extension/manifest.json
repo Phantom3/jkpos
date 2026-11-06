@@ -1,0 +1,35 @@
+{
+  "manifest_version": 3,
+  "name": "JKRestaurant Delivery Order Grabber",
+  "version": "1.0.0",
+  "description": "Automatically captures incoming Uber Eats and Grubhub orders and syncs them directly to JKRestaurant POS and thermal printers.",
+  "permissions": [
+    "scripting"
+  ],
+  "host_permissions": [
+    "*://*.ubereats.com/*",
+    "*://*.grubhub.com/*",
+    "http://localhost:8080/*",
+    "http://127.0.0.1:8080/*",
+    "http://192.168.2.229:8080/*"
+  ],
+  "content_scripts": [
+    {
+      "matches": [
+        "*://*.ubereats.com/*",
+        "*://*.grubhub.com/*"
+      ],
+      "js": ["content.js"],
+      "run_at": "document_start"
+    }
+  ],
+  "web_accessible_resources": [
+    {
+      "resources": ["injected.js"],
+      "matches": [
+        "*://*.ubereats.com/*",
+        "*://*.grubhub.com/*"
+      ]
+    }
+  ]
+}

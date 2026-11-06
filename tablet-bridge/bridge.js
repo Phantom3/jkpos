@@ -754,6 +754,81 @@ function startAdminServer() {
   const publicDir = path.join(__dirname, 'public');
 
   const server = http.createServer((req, res) => {
+    // Enable CORS for browser extension and cross-origin requests
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+
+    if (req.method === 'OPTIONS') {
+      res.writeHead(204);
+      res.end();
+      return;
+    }
+
+    // API: POST /api/direct-order (Direct structured JSON order from browser extension)
+    if (req.method === 'POST' && req.url === '/api/direct-order') {
+      let body = '';
+      req.on('data', chunk => body += chunk);
+      req.on('end', () => {
+        try {
+          const orderData = JSON.parse(body);
+          log(`[Direct-Order] Received web order ${orderData.orderId} (${orderData.platform}: ${orderData.customerName}) with ${orderData.items ? orderData.items.length : 0} item(s)!`);
+
+          // Prevent duplicate queueing
+          const alreadyQueued = pendingOnlineOrders.some(o => o.orderId === orderData.orderId);
+          if (!alreadyQueued) {
+            pendingOnlineOrders.push(orderData);
+            log(`[Direct-Order] Added to POS queue. Total pending: ${pendingOnlineOrders.length}`);
+
+            // Print physical receipt to kitchen & register with beeper alarm
+            const ordNumber = (orderData.orderId || '').replace(/[^0-9]/g, '').slice(-3) || '1';
+            const timeStr = new Date().toLocaleTimeString();
+
+            const buffers = [
+              Buffer.from([0x1B, 0x40]), // ESC @ Initialize
+              Buffer.from([0x1B, 0x61, 0x01]), // Center align
+              Buffer.from([0x1D, 0x21, 0x11, 0x1B, 0x45, 0x01]), // Double size + Bold
+              Buffer.from(`*** ${(orderData.platform || 'UBER EATS').toUpperCase()} ***\n`),
+              Buffer.from([0x1D, 0x21, 0x00, 0x1B, 0x45, 0x00]), // Normal
+              Buffer.from(`REF: ${orderData.orderId}\n`),
+              Buffer.from(`Customer: ${orderData.customerName}\n`),
+              Buffer.from(`Time: ${timeStr}\n`),
+              Buffer.from('------------------------------------------\n'),
+              Buffer.from([0x1B, 0x61, 0x00]) // Left align
+            ];
+
+            if (orderData.items && orderData.items.length > 0) {
+              for (const it of orderData.items) {
+                buffers.push(Buffer.from([0x1B, 0x45, 0x01])); // Bold
+                buffers.push(Buffer.from(`${it.qty || 1}x ${it.name}\n`));
+                buffers.push(Buffer.from([0x1B, 0x45, 0x00])); // Normal
+                if (it.notes) {
+                  buffers.push(Buffer.from(`   * ${it.notes}\n`));
+                }
+              }
+            }
+
+            buffers.push(Buffer.from('------------------------------------------\n'));
+            buffers.push(Buffer.from([0x1B, 0x61, 0x01])); // Center
+            buffers.push(Buffer.from('TOTAL: $0.00 (Prepaid)\n'));
+            buffers.push(Buffer.from('>>> SYNCED TO POS SCREEN <<<\n\n\n\n'));
+            buffers.push(Buffer.from([0x1D, 0x56, 0x41, 0x03])); // Cut
+            buffers.push(getBeepAlarmCommand()); // 5 loud kitchen beeps
+
+            forwardToPrinters(Buffer.concat(buffers));
+          }
+
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ success: true, message: 'Order received and processed' }));
+        } catch (e) {
+          log(`[Direct-Order Error] ${e.message}`);
+          res.writeHead(400, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ success: false, error: e.message }));
+        }
+      });
+      return;
+    }
+
     // API: JKSoft Native POS Online Order Polling & Confirmation Endpoint
     if (req.url && req.url.includes('/api/jksoft')) {
       let body = '';
