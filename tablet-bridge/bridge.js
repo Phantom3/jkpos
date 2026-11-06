@@ -603,7 +603,10 @@ function startPrintServer() {
       // Reset quiet debounce timer (500ms quiet = end of job)
       if (debounceTimer) clearTimeout(debounceTimer);
       debounceTimer = setTimeout(() => {
-        log(`[Print] Stream quiet timeout reached (500ms). Flushing job...`);
+        const totalBytes = bufferQueue.reduce((acc, c) => acc + c.length, 0);
+        if (totalBytes > 20) {
+          log(`[Print] Stream quiet timeout reached (${totalBytes} bytes). Flushing job...`);
+        }
         flushAndPrint();
       }, 500);
     });
