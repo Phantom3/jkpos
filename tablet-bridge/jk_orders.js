@@ -5,6 +5,19 @@
 
 const { getPool, sql } = require('C:/Users/Dunesuser/jkrestaurant-web/backend/db');
 
+let upchargeCache = new Set();
+const breadWords = new Set(['roll', 'on a roll', 'hero', 'wrap', 'panini', 'toast', 'white', 'wheat', 'whole wheat', 'rye', 'bagel', 'plain bagel', 'everything bagel', 'croissant', 'english muffin']);
+
+async function loadUpchargeCache() {
+  try {
+    const pool = await getPool();
+    const res = await pool.request().query("SELECT DISTINCT LOWER(Name) AS Name FROM rUpcharge WHERE IsActive = 1 AND Name IS NOT NULL AND Name <> ''");
+    upchargeCache = new Set(res.recordset.map(x => x.Name.trim()));
+  } catch (e) {}
+}
+loadUpchargeCache();
+setInterval(loadUpchargeCache, 10 * 60 * 1000);
+
 /**
  * Parses raw OCR text lines from a printed delivery receipt
  */
@@ -19,6 +32,7 @@ function parseReceiptText(lines) {
             .replace(/[\u201C\u201D\u201E\u201F\u2033\u2036]/g, '"')
             .replace(/[\u2018\u2019\u201A\u201B\u2032\u2035]/g, "'")
             .replace(/[^\x20-\x7E]/g, ' ')
+            .replace(/^[lI]x\s+/i, '1x ') // Fix OCR typo lx -> 1x
             .replace(/\s+/g, ' ')
             .trim();
   }).filter(l => l.length > 0 && !/^[-=_*•~|\\\/+#\s]+$/.test(l));
@@ -96,61 +110,86 @@ function parseReceiptText(lines) {
     subtotal = total;
   }
 
-  // 4. Extract Line Items
+  // 4. Extract Line Items & Modifiers
   const items = [];
-  const itemRegex = /^(?:\[?(\d+)\]?\s*(?:x|\*|\.|\-)?\s+)(.+)$/i;
+  let currentItem = null;
+  let expectingModifier = false;
 
   for (let i = 0; i < cleanLines.length; i++) {
-    const line = cleanLines[i].trim();
+    const line = cleanLines[i];
 
-    // Skip headers and totals
-    if (/total|subtotal|tax|discount|order|uber|grubhub|receipt|deliver|ship|date|time|estimated|prep time/i.test(line)) {
+    // Skip times, totals, headers
+    if (/^(?:uber|grubhub|order|receipt|invoice|subtotal|total|tax|discount|estimated|prep time|\d+\s*mins?)\b/i.test(line)) {
       continue;
     }
 
-    const itemMatch = line.match(itemRegex);
-    if (itemMatch) {
-      const qty = parseInt(itemMatch[1], 10) || 1;
-      let name = itemMatch[2].replace(/\$[\d\.]+.*$/, '').trim();
-      
-      // Skip if matched time, header, or price mistakenly
-      if (/^(?:estimated|prep|min|mins|minute|minutes|hour|hours|am|pm|pickup|dropoff|ready)\b/i.test(name)) {
-        continue;
+    // Check for modifier section prompt (e.g. CHOICE OF BREAD, CONDIMENTS)
+    if (/^(?:choice of|choose|condiments|special instructions?|customer notes?|options?)\b/i.test(line)) {
+      expectingModifier = true;
+      const noteMatch = line.match(/^(?:customer notes?|special instructions?)\s*[:\-]?\s*(.+)$/i);
+      if (noteMatch && currentItem) {
+        const noteText = noteMatch[1].replace(/^[*\-•\(\)\"\']+/g, '').replace(/[\"\']+$/g, '').trim();
+        if (noteText.length > 1) {
+          currentItem.notes.push(noteText);
+        }
       }
-      if (/^\$?[\d\.]+\$?$/.test(name)) {
+      continue;
+    }
+
+    // Check if line starts with a quantity: "1x", "1 ", "2x", "[1]"
+    const qtyMatch = line.match(/^(?:\[?(\d+)\]?\s*(?:x|\*|\.|\-)?\s+)(.+)$/i);
+    if (qtyMatch) {
+      const qty = parseInt(qtyMatch[1], 10) || 1;
+      let text = qtyMatch[2].replace(/\$[\d\.]+.*$/, '').replace(/^[lI]x\s+/i, '').trim();
+
+      // Skip if matched time or price
+      if (/^(?:min|mins|minute|minutes|hr|hrs|hour|hours|am|pm|ready|pickup)\b/i.test(text) || /^\$?[\d\.]+\$?$/.test(text)) {
         continue;
       }
 
-      // Collect all following modifier / instruction lines
-      const modifierLines = [];
-      while (i + 1 < cleanLines.length) {
-        const nextLine = cleanLines[i + 1].trim();
-        // Stop at next item or header/total
-        if (!nextLine || itemRegex.test(nextLine) || /\b(?:total|subtotal|tax|discount|order|uber|grubhub|receipt|deliver|ship)\b/i.test(nextLine)) {
-          break;
-        }
-        // Skip time lines and standalone price lines
-        if (!/^\d+\s*(?:min|mins|minute|minutes)\b/i.test(nextLine) && !/^\$\d+\.\d{2}$/.test(nextLine)) {
-          let cleanMod = nextLine.replace(/^(?:customer\s*notes?|special\s*instructions?)\s*[:\-]?\s*/i, '')
-                                 .replace(/^[*\-•\(\)]+/g, '')
-                                 .trim();
-          if (cleanMod.length > 1) {
-            modifierLines.push(cleanMod);
-          }
-        }
-        i++;
-      }
-      const notes = modifierLines.join(', ');
+      const isKnownModifier = upchargeCache.has(text.toLowerCase()) || 
+                              breadWords.has(text.toLowerCase()) ||
+                              expectingModifier;
 
-      if (name.length >= 2) {
+      if (isKnownModifier && currentItem) {
+        currentItem.notes.push(text);
+        continue;
+      }
+
+      // New Item
+      if (currentItem) {
         items.push({
-          qty,
-          name,
-          notes,
+          qty: currentItem.qty,
+          name: currentItem.name,
+          notes: currentItem.notes.join(', '),
           price: 0
         });
       }
+      currentItem = {
+        qty: qty,
+        name: text,
+        notes: []
+      };
+      expectingModifier = false;
+    } else if (currentItem) {
+      // Line without quantity under an item
+      const cleanMod = line.replace(/^(?:customer notes?|special instructions?)\s*[:\-]?\s*/i, '')
+                           .replace(/^[*\-•\(\)\"\']+/g, '')
+                           .replace(/[\"\']+$/g, '')
+                           .trim();
+      if (cleanMod.length > 1 && !/^\$\d+\.\d{2}$/.test(cleanMod) && !/^\d+\s*mins?\b/i.test(cleanMod)) {
+        currentItem.notes.push(cleanMod);
+      }
     }
+  }
+
+  if (currentItem) {
+    items.push({
+      qty: currentItem.qty,
+      name: currentItem.name,
+      notes: currentItem.notes.join(', '),
+      price: 0
+    });
   }
 
   return {
