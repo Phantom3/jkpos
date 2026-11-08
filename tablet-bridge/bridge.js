@@ -1173,12 +1173,12 @@ async function checkNewItemsForScripts() {
 setInterval(checkNewItemsForScripts, 2000);
 
 // -----------------------------------------------------------------------------
-// 3:00 PM DAILY GRUBHUB SALES SCHEDULER
-// Triggers Grubhub transactions page fetch and thermal sales slip print
+// 3:00 PM DAILY SALES SCHEDULER (Grubhub & Uber Eats)
+// Triggers Grubhub & Uber transactions page fetch and thermal sales slip print
 // -----------------------------------------------------------------------------
 let lastPrintedSalesDate = '';
 
-function check3PmGrubhubSales() {
+function check3PmDailySales() {
   const now = new Date();
   const dateStr = now.toISOString().split('T')[0];
   const hours = now.getHours();
@@ -1186,13 +1186,14 @@ function check3PmGrubhubSales() {
 
   if (hours === 15 && minutes === 0 && lastPrintedSalesDate !== dateStr) {
     lastPrintedSalesDate = dateStr;
-    log(`[Scheduler] 3:00 PM reached! Fetching and printing Grubhub daily sales for store 1945073...`);
+    log(`[Scheduler] 3:00 PM reached! Fetching and printing Grubhub and Uber Eats daily sales...`);
     const edgePath = 'C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe';
-    const targetUrl = 'https://restaurant.grubhub.com/financials/transactions/1945073/?auto_print=true';
+    const ghUrl = 'https://restaurant.grubhub.com/financials/transactions/1945073/?auto_print=true';
+    const uberUrl = 'https://merchants-beta.ubereats.com/order-history?auto_print=true';
     const { spawn } = require('child_process');
-    spawn(edgePath, ['--kiosk-printing', targetUrl], { detached: true });
+    spawn(edgePath, ['--kiosk-printing', ghUrl, uberUrl], { detached: true });
   }
 }
 
-setInterval(check3PmGrubhubSales, 20000);
+setInterval(check3PmDailySales, 20000);
 
