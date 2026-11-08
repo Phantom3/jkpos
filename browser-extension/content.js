@@ -219,3 +219,60 @@ function observeDomOrders() {
 
 if (document.body) observeDomOrders();
 else window.addEventListener('DOMContentLoaded', observeDomOrders);
+
+// 7. Grubhub Daily Financials Scraper & Auto-Printer
+if (window.location.hostname.includes('grubhub.com') && window.location.pathname.includes('/financials/transactions')) {
+  console.log('[JK-Financials] Active on Grubhub Financials Transactions page');
+
+  async function scrapeAndPrintGrubhubFinancials() {
+    // Wait 4 seconds for React / data tables to load
+    await new Promise(r => setTimeout(r, 4500));
+
+    try {
+      const summaryLines = [];
+      const cardElements = document.querySelectorAll('[class*="summary"], [class*="card"], [class*="stat"], [class*="metric"], [class*="total"], [class*="Row"], tr');
+      
+      cardElements.forEach(el => {
+        const text = (el.innerText || '').trim();
+        if (/\$[\d\.]+/.test(text) && text.length < 80) {
+          const cleanText = text.replace(/\s+/g, ' ');
+          if (!summaryLines.includes(cleanText)) {
+            summaryLines.push(cleanText);
+          }
+        }
+      });
+
+      console.log('[JK-Financials] Extracted summary lines:', summaryLines);
+
+      // Post to local bridge
+      const res = await fetch('http://localhost:8080/api/print-daily-sales', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          platform: 'Grubhub',
+          storeId: '1945073',
+          date: new Date().toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' }),
+          time: new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }),
+          lines: summaryLines.slice(0, 15)
+        })
+      });
+
+      console.log('[JK-Financials] Print response status:', res.status);
+
+      // If auto-triggered at 3 PM, close tab after 4 seconds
+      if (window.location.search.includes('auto_print=true')) {
+        setTimeout(() => {
+          window.close();
+        }, 4000);
+      }
+    } catch (e) {
+      console.error('[JK-Financials Error]', e);
+    }
+  }
+
+  if (document.readyState === 'complete') {
+    scrapeAndPrintGrubhubFinancials();
+  } else {
+    window.addEventListener('load', scrapeAndPrintGrubhubFinancials);
+  }
+}
