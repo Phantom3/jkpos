@@ -20,6 +20,7 @@ const path = require('path');
 const { recognizeRasterLines } = require('./ocr');
 const { parseReceiptText, insertJkOpenOrder } = require('./jk_orders');
 const { triggerPandoraLaunch } = require('./roku_pandora');
+const { executeBatForPosItem } = require('./script_runner');
 
 const LOG_FILE = path.join(__dirname, 'bridge.log');
 
@@ -1061,12 +1062,12 @@ startEposHttpServers();
 startAdminServer();
 
 // -----------------------------------------------------------------------------
-// PANDORA ROKU TV AUTO-LAUNCHER (192.168.2.225)
-// Watches MS SQL tItem for any order with "Pandora" added at the POS register
+// POS ORDER ITEM SCRIPT RUNNER (Roku & Automation)
+// Watches MS SQL tItem for any order item matching .bat scripts in Documents\Scripts\roku
 // -----------------------------------------------------------------------------
 let lastSeenItemIdn = 0;
 
-async function checkNewItemsForPandora() {
+async function checkNewItemsForScripts() {
   try {
     const { getPool, sql } = require('C:/Users/Dunesuser/jkrestaurant-web/backend/db');
     const pool = await getPool();
@@ -1080,16 +1081,22 @@ async function checkNewItemsForPandora() {
     const res = await pool.request()
       .input('lastId', sql.Money, lastSeenItemIdn)
       .query(`
-        SELECT TOP 5 ItemIDN, Summary, Memo
-        FROM tItem
-        WHERE ItemIDN > @lastId
-          AND (Summary LIKE '%Pandora%' OR Memo LIKE '%Pandora%')
-        ORDER BY ItemIDN DESC
+        SELECT TOP 10 t.ItemIDN, t.ReferenceIDN, t.Summary, t.Memo, r.Name as ItemName
+        FROM tItem t
+        LEFT JOIN rItem r ON t.ReferenceIDN = r.ItemIDN
+        WHERE t.ItemIDN > @lastId
+        ORDER BY t.ItemIDN ASC
       `);
 
     if (res.recordset.length > 0) {
-      log(`[Roku] Detected Pandora item added to POS order! (ItemIDN: ${res.recordset[0].ItemIDN})`);
-      triggerPandoraLaunch('POS Register Order');
+      for (const row of res.recordset) {
+        const namesToCheck = [row.ItemName, row.Summary, row.Memo].filter(Boolean);
+        for (const n of namesToCheck) {
+          const firstLine = n.split(/\r?\n/)[0].replace(/^[0-9x\s\.\*]+/, '').trim();
+          const matched = executeBatForPosItem(firstLine, 'POS Register');
+          if (matched) break;
+        }
+      }
     }
 
     // Update watermark
@@ -1098,5 +1105,5 @@ async function checkNewItemsForPandora() {
   } catch (err) {}
 }
 
-setInterval(checkNewItemsForPandora, 2500);
+setInterval(checkNewItemsForScripts, 2000);
 
