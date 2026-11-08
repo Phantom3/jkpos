@@ -32,6 +32,7 @@ function findMatchingBat(itemName) {
   if (clean === 'menu pm') candidates.push('tv-on-pm.bat', 'menu-pm.bat');
   if (clean === 'menu off') candidates.push('tv-off.bat', 'menu-off.bat');
   if (clean === 'tv restart' || clean === 'restart tv') candidates.push('tv-re.bat');
+  if (clean === 'grubhub report' || clean === 'gh sales' || clean === 'grubhub sales') candidates.push('grubhub-sales.bat');
 
   for (const c of candidates) {
     const match = files.find(f => f.toLowerCase() === c.toLowerCase());

@@ -220,13 +220,68 @@ function observeDomOrders() {
 if (document.body) observeDomOrders();
 else window.addEventListener('DOMContentLoaded', observeDomOrders);
 
-// 7. Grubhub Daily Financials Scraper & Auto-Printer
+// 7. Grubhub Daily Financials Scraper & Auto-Printer (Today's Totals Only)
 if (window.location.hostname.includes('grubhub.com') && window.location.pathname.includes('/financials/transactions')) {
   console.log('[JK-Financials] Active on Grubhub Financials Transactions page');
 
+  async function selectTodayDateRange() {
+    console.log('[JK-Financials] Checking date range selector for "Today"...');
+    
+    // Look for date dropdown or filter trigger button
+    const buttons = Array.from(document.querySelectorAll('button, [role="button"], select, div[class*="select"], div[class*="picker"], [data-testid*="date"], [class*="DateRange"]'));
+    const trigger = buttons.find(el => {
+      const t = (el.innerText || el.textContent || '').trim().toLowerCase();
+      return t.includes('date') || t.includes('range') || t.includes('days') || t.includes('today') || t.includes('week') || t.includes('month');
+    });
+
+    if (trigger) {
+      const triggerText = (trigger.innerText || '').trim();
+      if (/^today$/i.test(triggerText)) {
+        console.log('[JK-Financials] "Today" is already selected');
+        return true;
+      }
+
+      console.log('[JK-Financials] Opening date dropdown:', triggerText);
+      trigger.click();
+      await new Promise(r => setTimeout(r, 700));
+
+      // Look for "Today" option in dropdown/menu
+      const options = Array.from(document.querySelectorAll('li, option, [role="option"], [role="menuitem"], button, span, div[class*="option"], div[class*="item"]'));
+      const todayOption = options.find(el => {
+        const t = (el.innerText || el.textContent || '').trim();
+        return /^today$/i.test(t);
+      });
+
+      if (todayOption) {
+        console.log('[JK-Financials] Selecting "Today" preset...');
+        todayOption.click();
+        await new Promise(r => setTimeout(r, 1200));
+
+        // Click Apply if present
+        const applyBtn = Array.from(document.querySelectorAll('button')).find(b => /apply|update|done/i.test(b.innerText || ''));
+        if (applyBtn) {
+          applyBtn.click();
+          await new Promise(r => setTimeout(r, 1200));
+        }
+        return true;
+      }
+    }
+    return false;
+  }
+
   async function scrapeAndPrintGrubhubFinancials() {
-    // Wait 4 seconds for React / data tables to load
-    await new Promise(r => setTimeout(r, 4500));
+    // 1. Initial wait for React page render
+    await new Promise(r => setTimeout(r, 3500));
+
+    // 2. Automatically switch date range selector to "Today"
+    try {
+      await selectTodayDateRange();
+    } catch (e) {
+      console.warn('[JK-Financials] Could not toggle date picker:', e);
+    }
+
+    // 3. Wait for transactions data to reload with Today's numbers
+    await new Promise(r => setTimeout(r, 3000));
 
     try {
       const summaryLines = [];
@@ -242,7 +297,7 @@ if (window.location.hostname.includes('grubhub.com') && window.location.pathname
         }
       });
 
-      console.log('[JK-Financials] Extracted summary lines:', summaryLines);
+      console.log("[JK-Financials] Extracted Today's summary lines:", summaryLines);
 
       // Post to local bridge
       const res = await fetch('http://localhost:8080/api/print-daily-sales', {
@@ -251,6 +306,7 @@ if (window.location.hostname.includes('grubhub.com') && window.location.pathname
         body: JSON.stringify({
           platform: 'Grubhub',
           storeId: '1945073',
+          range: 'Today',
           date: new Date().toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' }),
           time: new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }),
           lines: summaryLines.slice(0, 15)

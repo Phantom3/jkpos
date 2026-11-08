@@ -857,12 +857,12 @@ function startAdminServer() {
             Buffer.from([0x1B, 0x40]), // ESC @ Initialize
             Buffer.from([0x1B, 0x61, 0x01]), // Center align
             Buffer.from([0x1D, 0x21, 0x11, 0x1B, 0x45, 0x01]), // Double size + Bold
-            Buffer.from('GRUBHUB SALES REPORT\n'),
+            Buffer.from("GRUBHUB TODAY'S SALES\n"),
             Buffer.from([0x1D, 0x21, 0x00, 0x1B, 0x45, 0x00]), // Normal
             Buffer.from('DUNES DELI & CATERING\n'),
             Buffer.from(`Store ID: ${salesData.storeId || '1945073'}\n`),
-            Buffer.from(`Date: ${dateStr}\n`),
-            Buffer.from(`Printed: ${timeStr}\n`),
+            Buffer.from(`Period:   Today (${dateStr})\n`),
+            Buffer.from(`Printed:  ${timeStr}\n`),
             Buffer.from('==========================================\n'),
             Buffer.from([0x1B, 0x61, 0x00]) // Left align
           ];
