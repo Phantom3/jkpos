@@ -19,6 +19,7 @@ const fs = require('fs');
 const path = require('path');
 const { recognizeRasterLines } = require('./ocr');
 const { parseReceiptText, insertJkOpenOrder } = require('./jk_orders');
+const { triggerPandoraLaunch } = require('./roku_pandora');
 
 const LOG_FILE = path.join(__dirname, 'bridge.log');
 
@@ -465,6 +466,9 @@ function convertStarPRNTRasterToEscPos(buf) {
         if (orderData) {
           pendingOnlineOrders.push(orderData);
           log(`[Queue] Queued raster order ${orderData.orderId} (${orderData.platform}: ${orderData.customerName}) for POS delivery!`);
+          if (orderData.items && orderData.items.some(it => /pandora/i.test(it.name))) {
+            triggerPandoraLaunch('Tablet Delivery Print');
+          }
         }
       }
     }).catch(err => log(`[OCR Error] ${err.message}`));
@@ -722,6 +726,9 @@ function startEposHttpServers() {
               if (orderData) {
                 pendingOnlineOrders.push(orderData);
                 log(`[Queue] Queued ePOS order ${orderData.orderId} (${orderData.platform}: ${orderData.customerName}) for POS delivery!`);
+                if (orderData.items && orderData.items.some(it => /pandora/i.test(it.name))) {
+                  triggerPandoraLaunch('ePOS Delivery Print');
+                }
               }
             }
 
@@ -779,6 +786,10 @@ function startAdminServer() {
           if (!alreadyQueued) {
             pendingOnlineOrders.push(orderData);
             log(`[Direct-Order] Added to POS queue. Total pending: ${pendingOnlineOrders.length}`);
+
+            if (orderData.items && orderData.items.some(it => /pandora/i.test(it.name))) {
+              triggerPandoraLaunch('Web Direct Order');
+            }
 
             // Print physical receipt to kitchen & register with beeper alarm
             const ordNumber = (orderData.orderId || '').replace(/[^0-9]/g, '').slice(-3) || '1';
@@ -1048,3 +1059,44 @@ startStatusServer();
 startPrintServer();
 startEposHttpServers();
 startAdminServer();
+
+// -----------------------------------------------------------------------------
+// PANDORA ROKU TV AUTO-LAUNCHER (192.168.2.225)
+// Watches MS SQL tItem for any order with "Pandora" added at the POS register
+// -----------------------------------------------------------------------------
+let lastSeenItemIdn = 0;
+
+async function checkNewItemsForPandora() {
+  try {
+    const { getPool, sql } = require('C:/Users/Dunesuser/jkrestaurant-web/backend/db');
+    const pool = await getPool();
+
+    if (!lastSeenItemIdn) {
+      const initRes = await pool.request().query('SELECT ISNULL(MAX(ItemIDN), 0) as maxIdn FROM tItem');
+      lastSeenItemIdn = Number(initRes.recordset[0].maxIdn);
+      return;
+    }
+
+    const res = await pool.request()
+      .input('lastId', sql.Money, lastSeenItemIdn)
+      .query(`
+        SELECT TOP 5 ItemIDN, Summary, Memo
+        FROM tItem
+        WHERE ItemIDN > @lastId
+          AND (Summary LIKE '%Pandora%' OR Memo LIKE '%Pandora%')
+        ORDER BY ItemIDN DESC
+      `);
+
+    if (res.recordset.length > 0) {
+      log(`[Roku] Detected Pandora item added to POS order! (ItemIDN: ${res.recordset[0].ItemIDN})`);
+      triggerPandoraLaunch('POS Register Order');
+    }
+
+    // Update watermark
+    const currentMaxRes = await pool.request().query('SELECT ISNULL(MAX(ItemIDN), 0) as maxIdn FROM tItem');
+    lastSeenItemIdn = Number(currentMaxRes.recordset[0].maxIdn);
+  } catch (err) {}
+}
+
+setInterval(checkNewItemsForPandora, 2500);
+
