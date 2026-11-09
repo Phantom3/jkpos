@@ -841,71 +841,6 @@ function startAdminServer() {
       return;
     }
 
-    // API: POST /api/print-daily-sales (Grubhub / End of Day Financial Sales Slip)
-    if (req.method === 'POST' && req.url === '/api/print-daily-sales') {
-      let body = '';
-      req.on('data', chunk => body += chunk);
-      req.on('end', () => {
-        try {
-          const salesData = JSON.parse(body || '{}');
-          log(`[Financials] Received Grubhub daily sales report print request for store ${salesData.storeId || '1945073'}`);
-
-          const dateStr = salesData.date || new Date().toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' });
-          const timeStr = salesData.time || new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
-
-          const buffers = [
-            Buffer.from([0x1B, 0x40]), // ESC @ Initialize
-            Buffer.from([0x1B, 0x61, 0x01]), // Center align
-            Buffer.from([0x1D, 0x21, 0x11, 0x1B, 0x45, 0x01]), // Double size + Bold
-            Buffer.from("GRUBHUB TODAY'S SALES\n"),
-            Buffer.from([0x1D, 0x21, 0x00, 0x1B, 0x45, 0x00]), // Normal
-            Buffer.from('DUNES DELI & CATERING\n'),
-            Buffer.from(`Store ID: ${salesData.storeId || '1945073'}\n`),
-            Buffer.from(`Period:   Today (${dateStr})\n`),
-            Buffer.from(`Printed:  ${timeStr}\n`),
-            Buffer.from('==========================================\n'),
-            Buffer.from([0x1B, 0x61, 0x00]) // Left align
-          ];
-
-          if (salesData.lines && Array.isArray(salesData.lines) && salesData.lines.length > 0) {
-            for (const l of salesData.lines) {
-              buffers.push(Buffer.from(`${l}\n`));
-            }
-          } else {
-            if (salesData.totalOrders !== undefined) buffers.push(Buffer.from(`Total Orders:        ${salesData.totalOrders}\n`));
-            if (salesData.grossSales) buffers.push(Buffer.from(`Gross Sales:         ${salesData.grossSales}\n`));
-            if (salesData.subtotal)   buffers.push(Buffer.from(`Food & Beverage:     ${salesData.subtotal}\n`));
-            if (salesData.tax)        buffers.push(Buffer.from(`Sales Tax:           ${salesData.tax}\n`));
-            if (salesData.tips)       buffers.push(Buffer.from(`Tips:                ${salesData.tips}\n`));
-            if (salesData.fees)       buffers.push(Buffer.from(`Grubhub Fees:        ${salesData.fees}\n`));
-            if (salesData.netPayout) {
-              buffers.push(Buffer.from('------------------------------------------\n'));
-              buffers.push(Buffer.from([0x1B, 0x45, 0x01])); // Bold
-              buffers.push(Buffer.from(`ESTIMATED PAYOUT:    ${salesData.netPayout}\n`));
-              buffers.push(Buffer.from([0x1B, 0x45, 0x00])); // Normal
-            }
-          }
-
-          buffers.push(Buffer.from('==========================================\n'));
-          buffers.push(Buffer.from([0x1B, 0x61, 0x01])); // Center
-          buffers.push(Buffer.from('>>> END OF DAY REPORT <<<\n\n\n\n'));
-          buffers.push(Buffer.from([0x1D, 0x56, 0x41, 0x03])); // Cut
-          buffers.push(getBeepAlarmCommand()); // Beep
-
-          const slipBuffer = Buffer.concat(buffers);
-          forwardToPrinters(slipBuffer);
-
-          res.writeHead(200, { 'Content-Type': 'application/json' });
-          res.end(JSON.stringify({ success: true, message: 'Sales report printed successfully' }));
-        } catch (e) {
-          log(`[Financials Error] ${e.message}`);
-          res.writeHead(400, { 'Content-Type': 'application/json' });
-          res.end(JSON.stringify({ success: false, error: e.message }));
-        }
-      });
-      return;
-    }
-
     // API: JKSoft Native POS Online Order Polling & Confirmation Endpoint
     if (req.url && req.url.includes('/api/jksoft')) {
       let body = '';
@@ -1171,29 +1106,4 @@ async function checkNewItemsForScripts() {
 }
 
 setInterval(checkNewItemsForScripts, 2000);
-
-// -----------------------------------------------------------------------------
-// 3:00 PM DAILY SALES SCHEDULER (Grubhub & Uber Eats)
-// Triggers Grubhub & Uber transactions page fetch and thermal sales slip print
-// -----------------------------------------------------------------------------
-let lastPrintedSalesDate = '';
-
-function check3PmDailySales() {
-  const now = new Date();
-  const dateStr = now.toISOString().split('T')[0];
-  const hours = now.getHours();
-  const minutes = now.getMinutes();
-
-  if (hours === 15 && minutes === 0 && lastPrintedSalesDate !== dateStr) {
-    lastPrintedSalesDate = dateStr;
-    log(`[Scheduler] 3:00 PM reached! Fetching and printing Grubhub and Uber Eats daily sales...`);
-    const edgePath = 'C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe';
-    const ghUrl = 'https://restaurant.grubhub.com/financials/transactions/1945073/?auto_print=true';
-    const uberUrl = 'https://merchants-beta.ubereats.com/order-history?auto_print=true';
-    const { spawn } = require('child_process');
-    spawn(edgePath, ['--kiosk-printing', ghUrl, uberUrl], { detached: true });
-  }
-}
-
-setInterval(check3PmDailySales, 20000);
 
