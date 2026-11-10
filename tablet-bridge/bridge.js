@@ -21,6 +21,7 @@ const { recognizeRasterLines } = require('./ocr');
 const { parseReceiptText, insertJkOpenOrder } = require('./jk_orders');
 const { triggerPandoraLaunch } = require('./roku_pandora');
 const { executeBatForPosItem } = require('./script_runner');
+const { startHeadlessBrowser, stopHeadlessBrowser } = require('./headless_orders');
 
 const LOG_FILE = path.join(__dirname, 'bridge.log');
 
@@ -1060,6 +1061,10 @@ startStatusServer();
 startPrintServer();
 startEposHttpServers();
 startAdminServer();
+
+if (CONFIG.settings && CONFIG.settings.headlessSync !== false) {
+  startHeadlessBrowser(log);
+}
 
 // -----------------------------------------------------------------------------
 // POS ORDER ITEM SCRIPT RUNNER (Roku & Automation)

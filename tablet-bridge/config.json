@@ -25,6 +25,7 @@
     "copies": 1,
     "beeps": 3,
     "beepDuration": 4,
-    "syncToJkPos": true
+    "syncToJkPos": true,
+    "headlessSync": true
   }
 }
