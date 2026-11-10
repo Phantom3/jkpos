@@ -783,15 +783,18 @@ function startAdminServer() {
           const orderData = JSON.parse(body);
           log(`[Direct-Order] Received web order ${orderData.orderId} (${orderData.platform}: ${orderData.customerName}) with ${orderData.items ? orderData.items.length : 0} item(s)!`);
 
-          // Prevent duplicate queueing
-          const alreadyQueued = pendingOnlineOrders.some(o => o.orderId === orderData.orderId);
-          if (!alreadyQueued) {
-            pendingOnlineOrders.push(orderData);
-            log(`[Direct-Order] Added to POS queue. Total pending: ${pendingOnlineOrders.length}`);
-
-            if (orderData.items && orderData.items.some(it => /pandora/i.test(it.name))) {
-              triggerPandoraLaunch('Web Direct Order');
+          // Only queue for POS sync if syncToJkPos is enabled
+          if (CONFIG.settings && CONFIG.settings.syncToJkPos !== false) {
+            const alreadyQueued = pendingOnlineOrders.some(o => o.orderId === orderData.orderId);
+            if (!alreadyQueued) {
+              pendingOnlineOrders.push(orderData);
+              log(`[Direct-Order] Added to POS queue. Total pending: ${pendingOnlineOrders.length}`);
             }
+          }
+
+          if (orderData.items && orderData.items.some(it => /pandora/i.test(it.name))) {
+            triggerPandoraLaunch('Web Direct Order');
+          }
 
             // Print physical receipt to kitchen & register with beeper alarm
             const ordNumber = (orderData.orderId || '').replace(/[^0-9]/g, '').slice(-3) || '1';
@@ -864,9 +867,9 @@ function startAdminServer() {
           return;
         }
 
-        // Return next pending order if available
+        // Return next pending order if available and syncToJkPos is enabled
         let responseXml = '';
-        if (pendingOnlineOrders.length > 0) {
+        if (CONFIG.settings && CONFIG.settings.syncToJkPos !== false && pendingOnlineOrders.length > 0) {
           const nextOrder = pendingOnlineOrders[0];
           log(`[JKSoft-POS] Delivering order ${nextOrder.orderId} (${nextOrder.platform}) to POS screen!`);
           responseXml = buildJkOnlineOrderXml(nextOrder);
