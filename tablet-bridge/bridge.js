@@ -16,7 +16,9 @@ const dgram = require('dgram');
 const net = require('net');
 const http = require('http');
 const fs = require('fs');
+const os = require('os');
 const path = require('path');
+const { execFile } = require('child_process');
 const { recognizeRasterLines } = require('./ocr');
 const { parseReceiptText, insertJkOpenOrder } = require('./jk_orders');
 const { triggerPandoraLaunch } = require('./roku_pandora');
@@ -519,13 +521,21 @@ function forwardToPrinters(payload) {
       if (!p.enabled) return;
 
       if (p.smbPath) {
-        log(`[Relay] (Copy ${c + 1}/${copies}) Writing to SMB shared printer ${p.name} (${p.smbPath})...`);
-        fs.writeFile(p.smbPath, payload, (err) => {
+        log(`[Relay] (Copy ${c + 1}/${copies}) Dispatching to SMB shared printer ${p.name} (${p.smbPath})...`);
+        const tempPath = path.join(os.tmpdir(), `ticket_${Date.now()}_${Math.floor(Math.random() * 1000)}.bin`);
+        fs.writeFile(tempPath, payload, (err) => {
           if (err) {
-            log(`[Relay] Error writing to SMB ${p.name}: ${err.message}`);
-          } else {
-            log(`[Relay] Dispatched ticket copy ${c + 1}/${copies} (${payload.length} bytes) to ${p.name}`);
+            log(`[Relay] Error creating temp print file: ${err.message}`);
+            return;
           }
+          execFile('cmd.exe', ['/c', 'copy', '/b', tempPath, p.smbPath], (cmdErr) => {
+            try { fs.unlinkSync(tempPath); } catch (e) {}
+            if (cmdErr) {
+              log(`[Relay] Error sending to SMB ${p.name}: ${cmdErr.message}`);
+            } else {
+              log(`[Relay] Dispatched ticket copy ${c + 1}/${copies} (${payload.length} bytes) to ${p.name}`);
+            }
+          });
         });
         return;
       }
@@ -827,12 +837,11 @@ function startAdminServer() {
             buffers.push(Buffer.from('------------------------------------------\n'));
             buffers.push(Buffer.from([0x1B, 0x61, 0x01])); // Center
             buffers.push(Buffer.from('TOTAL: $0.00 (Prepaid)\n'));
-            buffers.push(Buffer.from('>>> SYNCED TO POS SCREEN <<<\n\n\n\n'));
+            buffers.push(Buffer.from('>>> ONLINE DELIVERY ORDER <<<\n\n\n\n'));
             buffers.push(Buffer.from([0x1D, 0x56, 0x41, 0x03])); // Cut
             buffers.push(getBeepAlarmCommand()); // 5 loud kitchen beeps
 
             forwardToPrinters(Buffer.concat(buffers));
-          }
 
           res.writeHead(200, { 'Content-Type': 'application/json' });
           res.end(JSON.stringify({ success: true, message: 'Order received and processed' }));
@@ -1065,8 +1074,10 @@ startPrintServer();
 startEposHttpServers();
 startAdminServer();
 
-if (CONFIG.settings && CONFIG.settings.headlessSync !== false) {
+if (CONFIG.settings && CONFIG.settings.headlessSync === true) {
   startHeadlessBrowser(log);
+} else {
+  stopHeadlessBrowser();
 }
 
 // -----------------------------------------------------------------------------

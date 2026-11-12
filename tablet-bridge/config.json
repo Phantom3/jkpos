@@ -5,7 +5,7 @@
       "name": "Deli",
       "ip": "192.168.2.153",
       "port": 9100,
-      "enabled": false
+      "enabled": true
     },
     {
       "id": "kitchen",
@@ -26,6 +26,6 @@
     "beeps": 3,
     "beepDuration": 4,
     "syncToJkPos": false,
-    "headlessSync": true
+    "headlessSync": false
   }
 }
